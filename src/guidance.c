@@ -48,6 +48,13 @@ static double approach_vel(double range_m, double v_max)
  * Public API
  * ----------------------------------------------------------------------- */
 
+/*@ requires \valid(plan);
+  @ ensures \result == GNC_OK || \result == ERR_NULL_PTR;
+  @ ensures \result == GNC_OK ==> plan->count == 4U && plan->active == 0U;
+  @ assigns plan->table[0..GNC_MAX_WAYPOINTS-1], plan->count,
+  @         plan->active, plan->phase_elapsed_s;
+  @ loop invariant 0 <= \at(i,Here) <= GNC_MAX_WAYPOINTS;
+@*/
 GncStatus guid_init_plan(GuidancePlan *plan)
 {
     GNC_ASSERT(plan != NULL, ERR_NULL_PTR, return ERR_NULL_PTR);

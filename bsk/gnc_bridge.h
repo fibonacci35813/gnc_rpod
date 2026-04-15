@@ -91,6 +91,16 @@ int gnc_bridge_get_state(
  */
 int gnc_bridge_get_phase(const GncContext *ctx);
 
+/**
+ * @brief  Release a GNC context back to the static pool.
+ *
+ *   Must be called at the end of each Monte Carlo run to free the slot.
+ *   After this call the pointer must not be used.
+ *
+ * @param  ctx  GNC context to release (may be NULL — no-op)
+ */
+void gnc_bridge_free(GncContext *ctx);
+
 #ifdef __cplusplus
 }
 #endif

@@ -276,7 +276,7 @@ def run_sim(seed: int = 42, show_progress: bool = True) -> dict:
                   f"phase={gnc.phase}  dv={st['dv_mps']:.3f}m/s")
 
     st = gnc.get_state()
-    return {
+    result = {
         "docked":      docked,
         "steps":       step,
         "time_s":      step * SIM_DT_S,
@@ -286,6 +286,8 @@ def run_sim(seed: int = 42, show_progress: bool = True) -> dict:
         "telem":       telem,
         "seed":        seed,
     }
+    gnc.free()   # return static pool slot for Monte Carlo reuse
+    return result
 
 
 # ---------------------------------------------------------------------------

@@ -71,4 +71,67 @@ GncStatus nav_update(
     const Vec3 *meas_pos,
     double      meas_sigma);
 
+/* -----------------------------------------------------------------------
+ * Phase 8 — EKF with RAE measurements + IMU-driven propagation
+ * ----------------------------------------------------------------------- */
+
+/**
+ * @brief  EKF measurement update with range-azimuth-elevation (RAE).
+ *
+ * Nonlinear measurement model:
+ *   h(x) = [sqrt(x²+y²+z²), atan2(y,x), asin(z/r)]
+ * Linearised Jacobian H = dh/dx (3×6) computed at current estimate.
+ *
+ * @param  nav        Filter state (updated in place).
+ * @param  range_m    Measured range (m), must be > 0.
+ * @param  az_rad     Measured azimuth (rad).
+ * @param  el_rad     Measured elevation (rad).
+ * @param  sigma_r    Range noise 1-σ (m), must be > 0.
+ * @param  sigma_ang  Angle noise 1-σ (rad), must be > 0.
+ * @return GNC_OK, ERR_NULL_PTR, ERR_BAD_PARAM, or ERR_SINGULAR.
+ */
+GncStatus nav_update_ekf(
+    NavState *nav,
+    double    range_m,
+    double    az_rad,
+    double    el_rad,
+    double    sigma_r,
+    double    sigma_ang);
+
+/**
+ * @brief  Propagate covariance only using CW STM (no mean state change).
+ *
+ * Used in the two-rate loop: mean state propagated by IMU at high rate,
+ * covariance updated once per outer (LIDAR) step.
+ *
+ * @param  nav    Filter state (covariance updated in place).
+ * @param  n      Orbit mean motion (rad/s).
+ * @param  dt_s   Time step for CW STM (s).
+ * @return GNC_OK, ERR_NULL_PTR, or ERR_BAD_PARAM.
+ */
+GncStatus nav_propagate_cov_only(NavState *nav, double n, double dt_s);
+
+/**
+ * @brief  Propagate mean state using IMU measurement at inner-loop rate.
+ *
+ * Euler integration augmented with CW gravity-gradient coupling terms:
+ *   a_eff = a_imu + [2n*vy + 3n²*x, -2n*vx, -n²*z]
+ * This accounts for the tidal accelerations that the accelerometer
+ * cannot sense (they are part of the free-fall reference trajectory).
+ *
+ * Does NOT update covariance (call nav_propagate_cov_only once per
+ * outer 1-Hz step after running 10 inner IMU steps).
+ *
+ * @param  nav        Filter state (mean state updated in place).
+ * @param  meas_accel IMU-measured specific force in LVLH frame (m/s^2).
+ * @param  n          Orbit mean motion (rad/s).
+ * @param  dt_s       Inner-loop time step (s), typically 0.1 s.
+ * @return GNC_OK, ERR_NULL_PTR, or ERR_BAD_PARAM.
+ */
+GncStatus nav_propagate_imu(
+    NavState   *nav,
+    const Vec3 *meas_accel,
+    double      n,
+    double      dt_s);
+
 #endif /* NAV_FILTER_H */

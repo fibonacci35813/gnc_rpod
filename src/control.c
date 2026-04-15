@@ -29,6 +29,14 @@
 #define CTRL_ISP_S         220.0
 #define CTRL_G0_MPS2         9.80665
 
+/*@ requires \valid(gains);
+  @ ensures \result == GNC_OK || \result == ERR_NULL_PTR
+  @       || \result == ERR_BAD_PARAM;
+  @ ensures \result == GNC_OK ==>
+  @         gains->kp[0] > 0.0 && gains->kp[1] > 0.0 && gains->kp[2] > 0.0 &&
+  @         gains->kd[0] > 0.0 && gains->kd[1] > 0.0 && gains->kd[2] > 0.0;
+  @ assigns *gains;
+@*/
 GncStatus ctrl_init_gains(PdGains *gains)
 {
     GNC_ASSERT(gains != NULL, ERR_NULL_PTR, return ERR_NULL_PTR);
@@ -46,6 +54,13 @@ GncStatus ctrl_init_gains(PdGains *gains)
     return GNC_OK;
 }
 
+/*@ requires \valid_read(v);
+  @ requires \valid(norm);
+  @ ensures \result == GNC_OK || \result == ERR_NULL_PTR
+  @       || \result == ERR_BAD_PARAM;
+  @ ensures \result == GNC_OK ==> *norm >= 0.0;
+  @ assigns *norm;
+@*/
 GncStatus ctrl_vec3_norm(const Vec3 *v, double *norm)
 {
     GNC_ASSERT(v    != NULL, ERR_NULL_PTR, return ERR_NULL_PTR);
@@ -58,6 +73,11 @@ GncStatus ctrl_vec3_norm(const Vec3 *v, double *norm)
     return GNC_OK;
 }
 
+/*@ requires \valid_read(a) && \valid_read(b);
+  @ requires \valid(result);
+  @ ensures \result == GNC_OK || \result == ERR_NULL_PTR;
+  @ assigns *result;
+@*/
 GncStatus ctrl_vec3_sub(const Vec3 *a, const Vec3 *b, Vec3 *result)
 {
     GNC_ASSERT(a      != NULL, ERR_NULL_PTR, return ERR_NULL_PTR);
@@ -94,6 +114,13 @@ GncStatus ctrl_apply_terminal_gains(PdGains *gains)
     return GNC_OK;
 }
 
+/*@ requires \valid_read(gains) && \valid_read(pos_err) && \valid_read(vel_err);
+  @ requires \valid(cmd) && \valid(fuel);
+  @ requires mass_kg > 0.0 && dt_s > 0.0 && mib_Ns >= 0.0;
+  @ ensures \result == GNC_OK || \result == ERR_NULL_PTR
+  @       || \result == ERR_BAD_PARAM || \result == ERR_BOUNDS;
+  @ assigns *cmd, *fuel;
+@*/
 GncStatus ctrl_compute(
     const PdGains *gains,
     const Vec3    *pos_err,

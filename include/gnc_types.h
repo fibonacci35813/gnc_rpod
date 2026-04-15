@@ -24,6 +24,7 @@
 #define GNC_STATE_DIM           6U   /* nav filter state: [x y z vx vy vz] */
 #define GNC_MEAS_DIM            3U   /* measurement: [range az el]         */
 #define GNC_THRUSTER_AXES       6U   /* ±x, ±y, ±z pairs                  */
+#define GNC_MAX_RW              3U   /* three reaction wheels (orthogonal) */
 
 /* Physical / mission constants */
 #define GNC_MU_EARTH    3.986004418e14  /* Earth GM (m^3/s^2)             */
@@ -106,6 +107,31 @@ typedef struct {
     double prop_kg;      /* propellant mass consumed (kg) (Tsiolkovsky)   */
     uint32_t fire_count; /* total thruster firing events                  */
 } FuelState;
+
+/* -----------------------------------------------------------------------
+ * Attitude state and command
+ * q[4] = [q0, q1, q2, q3] where q0 is the scalar part (w, x, y, z convention)
+ * omega[3] = angular velocity (rad/s) in body frame
+ * ----------------------------------------------------------------------- */
+typedef struct {
+    double q[4];         /* unit quaternion [w, x, y, z]        */
+    double omega[3];     /* body angular velocity (rad/s)        */
+} AttState;
+
+typedef struct {
+    double torque[3];    /* commanded torque vector (N·m)        */
+} AttCmd;
+
+/* -----------------------------------------------------------------------
+ * Environment perturbation model (Phase 7)
+ * True dynamics use J2 + drag; onboard GNC stays with plain CW.
+ * ----------------------------------------------------------------------- */
+typedef struct {
+    uint8_t use_j2;       /* 1 = include J2 oblateness perturbation    */
+    uint8_t use_drag;     /* 1 = include atmospheric drag              */
+    double  Cd;           /* drag coefficient (dimensionless, typ 2.2) */
+    double  area_m2;      /* cross-sectional area (m^2)                */
+} EnvModel;
 
 /* -----------------------------------------------------------------------
  * Simulation telemetry record (one per step)

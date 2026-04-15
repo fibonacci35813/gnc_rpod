@@ -78,6 +78,10 @@ _lib.gnc_bridge_get_state.argtypes = [
 _lib.gnc_bridge_get_phase.restype  = ctypes.c_int
 _lib.gnc_bridge_get_phase.argtypes = [ctypes.c_void_p]
 
+# void gnc_bridge_free(ctx)
+_lib.gnc_bridge_free.restype  = None
+_lib.gnc_bridge_free.argtypes = [ctypes.c_void_p]
+
 
 # ---------------------------------------------------------------------------
 # Python wrapper class
@@ -169,3 +173,12 @@ class GncBridge:
         if self._ctx is None:
             return -1
         return int(_lib.gnc_bridge_get_phase(self._ctx))
+
+    def free(self) -> None:
+        """Release this context back to the static pool (required for MC runs)."""
+        if self._ctx is not None:
+            _lib.gnc_bridge_free(self._ctx)
+            self._ctx = None
+
+    def __del__(self) -> None:
+        self.free()

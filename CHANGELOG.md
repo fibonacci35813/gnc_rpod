@@ -2,6 +2,86 @@
 
 ---
 
+## [v1.1.0] — Phase 6: FDIR  ✅ PASSING
+
+**Build:** Zero warnings (`-Werror` enforced)
+**Static analysis:** `cppcheck --enable=all` → zero findings
+**Standalone sim result:** Docked YES, pos=0.0295 m, vel=0.0005 m/s, ΔV=1.588 m/s
+**Nominal MC (100 runs):** P(dock)=1.000
+**FDIR MC stuck_open:**    P(abort ≤ 10 steps)=1.000
+**FDIR MC dropout:**       P(dock)=1.000 ≥ 0.90
+**FDIR MC stuck_closed:**  P(dock)=1.000 ≥ 0.80
+
+### Phase 6 — FDIR (Fault Detection, Isolation and Recovery)
+- Created `include/fdir.h`: FaultCode/MissionMode enums, FaultState struct, full API
+- Created `src/fdir.c`: 7 P10-compliant functions
+  - `fdir_init`, `fdir_check_thruster`, `fdir_check_sensor`, `fdir_check_nav`
+  - `fdir_check_attitude`, `fdir_get_mode`, `fdir_update`
+  - stuck_open detection is latched; non-latched faults auto-clear after HOLD timeout
+- Wired FDIR into `sim/main.c`: checks run every step; `mission_mode`/`fault_code` added to telem.csv
+- Created `sim/mc_fdir.c`: fault-injection MC harness
+  - `stuck_open`: inject 0.5 N uncmd'd force on z-axis → 100/100 abort within 10 steps
+  - `dropout`: 3 consecutive invalid sensor steps → 100/100 recovery+dock
+  - `stuck_closed`: zero actual force for 50 steps → 100/100 dock after recovery
+- Added `plot_fdir_timeline()` to `sim/plot_telem.py` (6th plot)
+- Added `mc-fdir` Makefile target
+
+---
+
+## [v1.0.0] — All Phases Complete  ✅ PASSING
+
+**Build:** Zero warnings (`-Werror` enforced)
+**Static analysis:** `cppcheck --enable=all` → zero findings
+**Standalone sim result:** Docked YES, pos=0.0295 m, vel=0.0005 m/s, ΔV=1.588 m/s
+**C MC (100 runs):** P(dock)=1.000, ΔV mean=1.656 m/s
+**BSK MC (20 runs):** P(dock)=1.000, ΔV mean=1.692 m/s (2.2% delta vs C — within 5% gate)
+
+### Phase 1 — Baseline stabilisation
+- `make clean && make && make run` → Docked: YES, pos < 0.05 m
+- `make check` → zero cppcheck findings
+- Created `environment.yml`, `requirements.txt`, `README.md`
+- Fixed unmatched `--suppress=checkersReport` in Makefile (cppcheck 2.7 compat)
+
+### Phase 2 — Telemetry visualisation
+- Created `sim/plot_telem.py` (Agg backend, headless)
+  - 5 plots: range_vs_time, trajectory_lvlh, nav_error, propulsion, dv_budget
+  - Phase transition vertical lines inferred from range thresholds
+  - PDF + PNG output to sim/plots/
+- Added `make plot` target (run sim → plot)
+
+### Phase 3 — Monte Carlo harness
+- Created `sim/monte_carlo.c` (P10 compliant, MAX_RUNS=2000 fixed bound)
+  - Dispersions: pos0 ± N(0,3m), vel0 ± N(0,0.05 m/s), thr_scale U(±5%)
+  - Deterministic LCG with per-run seed to decorrelate runs
+  - Writes sim/mc_results.csv; prints pass/fail gate at P(dock) ≥ 0.95
+- Created `sim/plot_mc.py` (scatter, step histogram, ΔV box plot)
+- Added `make mc N=100` target with pass/fail gate
+
+### Phase 4 — Attitude control
+- Extended `gnc_types.h`: `AttState` (quaternion + omega), `AttCmd` (torque), `GNC_MAX_RW=3`
+- Created `include/attitude.h` + `src/attitude.c`:
+  - `att_init()`, `att_kinematics()` (RK4), `att_error()`, `att_pd_control()`
+  - `att_docking_cmd()`: aligns body -y to point toward target for Phase 3
+  - `att_check_aligned()`: 1-degree tolerance check
+  - **Symplectic Euler** integration order (q first, ω second) for stability at dt=1s
+    — "ω-first" order has eigenvalue |λ|=1.28 > 1 (unstable); symplectic gives |λ|=0.71
+- Created `include/rw_model.h` + `src/rw_model.c`:
+  - 3-axis reaction wheels, ±0.1 N·m·s saturation, desaturation bleed
+- Updated `sim/main.c`: coast in phases 0-2, active pointing in phase 3
+  - Docking check now requires: pos ∧ vel ∧ attitude alignment
+  - Phase 3 att_err < 1 degree at docking (0.504 deg at contact)
+
+### Phase 5 — Basilisk end-to-end validation
+- Fixed `bsk/gnc_bridge.c`: added `Vec3 last_force` to `GncContext`; nav propagation
+  now passes the last commanded force instead of zero — improves Kalman consistency
+- Added `gnc_bridge_free()` API + Python binding + `__del__` in `GncBridge` to
+  return pool slots after each MC run (was exhausting 4-slot pool after 4 seeds)
+- BSK single run: Docked=YES, range=3.1 cm, ΔV=1.620 m/s
+- BSK MC 20 seeds: 20/20 docked, mean ΔV=1.692 m/s
+- C vs BSK: ΔV difference 2.2% (< 5% gate ✓), dock rate 100% both (✓)
+
+---
+
 ## [v0.5.0] — Final Release  ✅ PASSING
 
 **Build:** Zero warnings (`-Werror` enforced)

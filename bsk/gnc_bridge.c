@@ -37,6 +37,7 @@ struct GncContext {
     uint32_t      dwell;        /* consecutive steps inside docking tol   */
     uint8_t       term_armed;   /* high-gain terminal mode active         */
     uint8_t       in_use;       /* slot occupied flag                     */
+    Vec3          last_force;   /* commanded force from previous step (N) */
 };
 
 static struct GncContext s_pool[BRIDGE_MAX_CTX];  /* zero-init at startup */
@@ -130,9 +131,8 @@ int gnc_bridge_step(
 
     *docked = 0;
 
-    /* Nav filter: propagate (use last command, which is zero on first step) */
-    Vec3 zero_force = {{0.0, 0.0, 0.0}};
-    GncStatus rc = nav_propagate(&ctx->nav, &zero_force,
+    /* Nav filter: propagate using last commanded force (zero on first step) */
+    GncStatus rc = nav_propagate(&ctx->nav, &ctx->last_force,
                                  ctx->n_rad, dt_s, ctx->mass_kg);
     if (rc != GNC_OK) { return (int)rc; }
 
@@ -187,6 +187,9 @@ int gnc_bridge_step(
     ctx->mass_kg -= cmd.prop_step_kg;
     if (ctx->mass_kg < 10.0) { ctx->mass_kg = 10.0; }
 
+    /* Store force for next-step nav propagation */
+    ctx->last_force = cmd.force_N;
+
     /* Output force */
     vec3_to_arr(&cmd.force_N, force_lvlh);
 
@@ -234,4 +237,10 @@ int gnc_bridge_get_phase(const GncContext *ctx)
 {
     if (ctx == NULL) { return -1; }
     return (int)ctx->plan.active;
+}
+
+void gnc_bridge_free(GncContext *ctx)
+{
+    if (ctx == NULL) { return; }
+    ctx->in_use = 0U;
 }

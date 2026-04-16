@@ -138,6 +138,10 @@ def sensor_sigma(range_m):
 
 # ISS reference position in ECI [m] — target sits here
 _TARGET_ECI = np.array([SMA, 0.0, 0.0])
+_IDENTITY_DCM = [1.0, 0.0, 0.0,
+                 0.0, 1.0, 0.0,
+                 0.0, 0.0, 1.0]
+_IDENTITY_MRP = [0.0, 0.0, 0.0]
 
 
 def _encode_varint32(value):
@@ -154,11 +158,67 @@ def _encode_varint32(value):
     return bytes(buf)
 
 
+def _add_vizard_scene_metadata(msg):
+    """Populate first-frame metadata needed by Vizard to build a scene."""
+    msg.epoch.year = 2026
+    msg.epoch.month = 4
+    msg.epoch.day = 16
+    msg.epoch.hours = 0
+    msg.epoch.minutes = 0
+    msg.epoch.seconds = 0.0
+
+    settings = msg.settings
+    settings.orbitLinesOn = 1
+    settings.trueTrajectoryLinesOn = 1
+    settings.spacecraftCSon = 1
+    settings.showCelestialBodyLabels = 1
+    settings.showSpacecraftLabels = 1
+    settings.showSpacecraftAsSprites = 1
+    settings.defaultSpacecraftSprite = "CIRCLE"
+    settings.mainCameraTarget = "chaser"
+    settings.forceStartAtSpacecraftLocalView = 1
+    settings.spacecraftSizeMultiplier = 20.0
+    settings.showHillFrame = 1
+    settings.relativeOrbitFrame = 1
+    settings.orbitLineSegments = 512
+    settings.relativeOrbitRange = 10
+
+    point_line = settings.pointLines.add()
+    point_line.fromBodyName = "target"
+    point_line.toBodyName = "chaser"
+    point_line.lineColor.extend([0, 255, 0, 255])
+
+
+def _add_earth_body(msg):
+    """Add Earth as the central body so Vizard has a planet/camera context."""
+    earth = msg.celestialBodies.add()
+    earth.bodyName = "earth"
+    earth.position.extend([0.0, 0.0, 0.0])
+    earth.velocity.extend([0.0, 0.0, 0.0])
+    earth.rotation.extend(_IDENTITY_DCM)
+    earth.mu = MU_EARTH / 1.0e9      # Vizard expects km^3/s^2
+    earth.radiusEq = R_EARTH / 1000.0
+    earth.radiusRatio = 1.0
+    earth.modelDictionaryKey = "earth"
+
+
+def _add_spacecraft(msg, name, position, velocity, sprite):
+    """Add one spacecraft using the MRP attitude format Vizard expects."""
+    sc = msg.spacecraft.add()
+    sc.spacecraftName = name
+    sc.position.extend([float(position[0]), float(position[1]), float(position[2])])
+    sc.velocity.extend([float(velocity[0]), float(velocity[1]), float(velocity[2])])
+    sc.rotation.extend(_IDENTITY_MRP)
+    sc.spacecraftSprite = sprite
+    sc.modelDictionaryKey = "bskSat"
+    return sc
+
+
 def write_vizard_bin(path, records):
     """Write Vizard-compatible protobuf binary telemetry.
 
     records: list of (step, t_s, x, y, z, vx, vy, vz, dv, phase)
-    Produces length-delimited VizMessage protobuf stream readable by Vizard.
+    Produces a length-delimited VizMessage protobuf stream readable by Vizard.
     """
     os.makedirs(os.path.dirname(path) if os.path.dirname(path) else ".", exist_ok=True)
 
@@ -177,34 +237,35 @@ def write_vizard_bin(path, records):
             msg = _VizMessage()
 
             # --- timestamp ---
-            msg.currentTime.frameNumber    = int(step)
+            msg.currentTime.frameNumber    = int(step) + 1
             msg.currentTime.simTimeElapsed = t_s * 1.0e9   # ns
 
+            if step == records[0][0]:
+                _add_vizard_scene_metadata(msg)
+
+            _add_earth_body(msg)
+
             # --- target spacecraft (stationary at ISS reference) ---
-            tgt = msg.spacecraft.add()
-            tgt.spacecraftName = "target"
-            tgt.position.extend([float(_TARGET_ECI[0]),
-                                  float(_TARGET_ECI[1]),
-                                  float(_TARGET_ECI[2])])
-            tgt.velocity.extend([0.0, 0.0, 0.0])
-            tgt.rotation.extend([1.0, 0.0, 0.0,
-                                  0.0, 1.0, 0.0,
-                                  0.0, 0.0, 1.0])
+            _add_spacecraft(
+                msg,
+                "target",
+                _TARGET_ECI,
+                [0.0, 0.0, 0.0],
+                "SQUARE",
+            )
 
             # --- chaser spacecraft (target ECI + LVLH offset) ---
             # LVLH axes at this reference point:
             #   x_LVLH ≈ ECI X (radial outward)
             #   y_LVLH ≈ ECI Y (along-track)
             #   z_LVLH ≈ ECI Z (cross-track)
-            chs = msg.spacecraft.add()
-            chs.spacecraftName = "chaser"
-            chs.position.extend([float(_TARGET_ECI[0] + x),
-                                  float(_TARGET_ECI[1] + y),
-                                  float(_TARGET_ECI[2] + z)])
-            chs.velocity.extend([float(vx), float(vy), float(vz)])
-            chs.rotation.extend([1.0, 0.0, 0.0,
-                                  0.0, 1.0, 0.0,
-                                  0.0, 0.0, 1.0])
+            _add_spacecraft(
+                msg,
+                "chaser",
+                [_TARGET_ECI[0] + x, _TARGET_ECI[1] + y, _TARGET_ECI[2] + z],
+                [vx, vy, vz],
+                "CIRCLE",
+            )
 
             serialized = msg.SerializeToString()
             f.write(_encode_varint32(len(serialized)))

@@ -176,17 +176,41 @@ def _add_vizard_scene_metadata(msg):
     settings.showSpacecraftAsSprites = 1
     settings.defaultSpacecraftSprite = "CIRCLE"
     settings.mainCameraTarget = "chaser"
-    settings.forceStartAtSpacecraftLocalView = 1
+    settings.forceStartAtSpacecraftLocalView = -1
     settings.spacecraftSizeMultiplier = 20.0
+    settings.keyboardAngularRate = 20.0
+    settings.keyboardZoomRate = 25.0
     settings.showHillFrame = 1
     settings.relativeOrbitFrame = 1
     settings.orbitLineSegments = 512
     settings.relativeOrbitRange = 10
+    settings.scViewToPlanetViewBoundaryMultiplier = 1
+    settings.planetViewToHelioViewBoundaryMultiplier = 1
 
     point_line = settings.pointLines.add()
     point_line.fromBodyName = "target"
     point_line.toBodyName = "chaser"
     point_line.lineColor.extend([0, 255, 0, 255])
+
+    chase_cam = settings.standardCameraSettings.add()
+    chase_cam.spacecraftName = "chaser"
+    chase_cam.setMode = 0
+    chase_cam.bodyTarget = "target"
+    chase_cam.setView = 2
+    chase_cam.fieldOfView = 55.0
+    chase_cam.position.extend([0.0, -30.0, 10.0])
+    chase_cam.displayName = "Chaser to Target"
+
+    target_cam = settings.standardCameraSettings.add()
+    target_cam.spacecraftName = "target"
+    target_cam.setMode = 0
+    target_cam.bodyTarget = "chaser"
+    target_cam.setView = 2
+    target_cam.fieldOfView = 55.0
+    target_cam.position.extend([0.0, 30.0, 10.0])
+    target_cam.displayName = "Target to Chaser"
+
+    msg.liveSettings.relativeOrbitChief = "target"
 
 
 def _add_earth_body(msg):

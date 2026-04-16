@@ -198,15 +198,15 @@ static GncStatus run_one_fdir(
     GNC_ASSERT(rc == GNC_OK, rc, return rc);
 
     GuidancePlan plan;
-    rc = guid_init_plan(&plan);
+    rc = guid_init_plan(&plan, NULL);   /* NULL → hardcoded defaults */
     GNC_ASSERT(rc == GNC_OK, rc, return rc);
 
     PdGains gains;
-    rc = ctrl_init_gains(&gains);
+    rc = ctrl_init_gains(&gains, NULL); /* NULL → hardcoded defaults */
     GNC_ASSERT(rc == GNC_OK, rc, return rc);
 
     FaultState fs;
-    rc = fdir_init(&fs);
+    rc = fdir_init(&fs, NULL);          /* NULL → hardcoded defaults */
     GNC_ASSERT(rc == GNC_OK, rc, return rc);
 
     FuelState fuel;
@@ -233,7 +233,7 @@ static GncStatus run_one_fdir(
             rc = guid_active_phase(&plan, &cur_phase);
             GNC_ASSERT(rc == GNC_OK, rc, return rc);
             if ((term_armed == 0U) && (cur_phase >= (plan.count - 1U))) {
-                rc = ctrl_apply_terminal_gains(&gains);
+                rc = ctrl_apply_terminal_gains(&gains, NULL); /* NULL → defaults */
                 GNC_ASSERT(rc == GNC_OK, rc, return rc);
                 mib_Ns = MCFDIR_TERM_MIB_NS;
                 term_armed = 1U;
@@ -382,11 +382,11 @@ static GncStatus retreat_init(RetreatRun *r,
 
     rc = nav_init(&r->nav, pos0, vel0, MCFDIR_NAV_P0_POS, MCFDIR_NAV_P0_VEL);
     GNC_ASSERT(rc == GNC_OK, rc, return rc);
-    rc = guid_init_plan(&r->plan);
+    rc = guid_init_plan(&r->plan, NULL);   /* NULL → hardcoded defaults */
     GNC_ASSERT(rc == GNC_OK, rc, return rc);
-    rc = ctrl_init_gains(&r->gains);
+    rc = ctrl_init_gains(&r->gains, NULL); /* NULL → hardcoded defaults */
     GNC_ASSERT(rc == GNC_OK, rc, return rc);
-    rc = fdir_init(&r->fs);
+    rc = fdir_init(&r->fs, NULL);          /* NULL → hardcoded defaults */
     GNC_ASSERT(rc == GNC_OK, rc, return rc);
     rc = mgr_init(&r->mgr);
     GNC_ASSERT(rc == GNC_OK, rc, return rc);
@@ -416,7 +416,7 @@ static GncStatus retreat_guidance_ctrl(RetreatRun *r, ControlCmd *cmd_out)
         GncStatus rc = guid_active_phase(&r->plan, &cur_phase);
         GNC_ASSERT(rc == GNC_OK, rc, return rc);
         if ((r->term_armed == 0U) && (cur_phase >= (r->plan.count - 1U))) {
-            rc = ctrl_apply_terminal_gains(&r->gains);
+            rc = ctrl_apply_terminal_gains(&r->gains, NULL); /* NULL → defaults */
             GNC_ASSERT(rc == GNC_OK, rc, return rc);
             r->mib_Ns     = MCFDIR_TERM_MIB_NS;
             r->term_armed = 1U;

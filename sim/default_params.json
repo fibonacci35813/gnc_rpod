@@ -1,0 +1,11 @@
+{
+  "kp_x": 0.300000, "kp_y": 0.200000, "kp_z": 0.300000,
+  "kd_x": 30.000000, "kd_y": 25.000000, "kd_z": 30.000000,
+  "kp_terminal_x": 0.500000, "kp_terminal_y": 0.500000, "kp_terminal_z": 0.500000,
+  "kd_terminal_x": 42.000000, "kd_terminal_y": 42.000000, "kd_terminal_z": 42.000000,
+  "K_V": 0.010000,
+  "v_phase_0_max": 1.000000, "v_phase_1_max": 0.500000,
+  "v_phase_2_max": 0.080000, "v_phase_3_max": 0.040000,
+  "fdir_hold_timeout_s": 60.000000, "fdir_dropout_limit": 3,
+  "mib_normal_ns": 0.100000, "mib_terminal_ns": 0.005000
+}

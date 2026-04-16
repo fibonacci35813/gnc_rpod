@@ -152,12 +152,12 @@ static GncStatus run_one(
 
     /* Guidance */
     GuidancePlan plan;
-    rc = guid_init_plan(&plan);
+    rc = guid_init_plan(&plan, NULL);   /* NULL → hardcoded defaults */
     GNC_ASSERT(rc == GNC_OK, rc, return rc);
 
     /* Gains */
     PdGains gains;
-    rc = ctrl_init_gains(&gains);
+    rc = ctrl_init_gains(&gains, NULL); /* NULL → hardcoded defaults */
     GNC_ASSERT(rc == GNC_OK, rc, return rc);
 
     /* Fuel */
@@ -186,7 +186,7 @@ static GncStatus run_one(
             GNC_ASSERT(rc == GNC_OK, rc, return rc);
 
             if ((term_armed == 0U) && (cur_phase >= (plan.count - 1U))) {
-                rc = ctrl_apply_terminal_gains(&gains);
+                rc = ctrl_apply_terminal_gains(&gains, NULL); /* NULL → defaults */
                 GNC_ASSERT(rc == GNC_OK, rc, return rc);
                 mib_Ns     = MC_TERM_MIB_NS;
                 term_armed = 1U;

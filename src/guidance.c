@@ -18,6 +18,7 @@
 #include <math.h>
 #include "guidance.h"
 #include "gnc_assert.h"
+#include "params.h"
 
 /* Velocity threshold per waypoint to gate advancement */
 #define GUID_VT_FAR     0.30   /* phase 0 → 1: must slow below 0.30 m/s */
@@ -36,10 +37,11 @@ static double sq3(const Vec3 *v)
     return v->v[0]*v->v[0] + v->v[1]*v->v[1] + v->v[2]*v->v[2];
 }
 
-static double approach_vel(double range_m, double v_max)
+/* k_v is taken from plan->K_V so the gain is runtime-configurable */
+static double approach_vel(double range_m, double v_max, double k_v)
 {
-    double v = GUID_K_V * range_m;
-    if (v > v_max)    { v = v_max;    }
+    double v = k_v * range_m;
+    if (v > v_max)        { v = v_max;        }
     if (v < GUID_V_CREEP) { v = GUID_V_CREEP; }
     return v;
 }
@@ -52,10 +54,11 @@ static double approach_vel(double range_m, double v_max)
   @ ensures \result == GNC_OK || \result == ERR_NULL_PTR;
   @ ensures \result == GNC_OK ==> plan->count == 4U && plan->active == 0U;
   @ assigns plan->table[0..GNC_MAX_WAYPOINTS-1], plan->count,
-  @         plan->active, plan->phase_elapsed_s;
+  @         plan->active, plan->phase_elapsed_s,
+  @         plan->K_V, plan->v_phase_max[0..3];
   @ loop invariant 0 <= \at(i,Here) <= GNC_MAX_WAYPOINTS;
 @*/
-GncStatus guid_init_plan(GuidancePlan *plan)
+GncStatus guid_init_plan(GuidancePlan *plan, const GncParams *p)
 {
     GNC_ASSERT(plan != NULL, ERR_NULL_PTR, return ERR_NULL_PTR);
 
@@ -86,12 +89,7 @@ GncStatus guid_init_plan(GuidancePlan *plan)
     plan->table[2].corridor_m   = 1.0;
     plan->table[2].hold_time_s  = 10.0;
 
-    /* Phase 3 — terminal ingress @ docking port (origin)
-     * K_V profile gives natural decel:
-     *   range=4m → v=0.040 m/s   range=1m → v=0.010 m/s
-     *   range=0.2m → v=0.002 m/s  range≤0.1m → v=CREEP=0.001 m/s
-     * Entry speed into 5cm corridor ≈ 0.001 m/s → braking dist ≈ 12mm ✓
-     */
+    /* Phase 3 — terminal ingress @ docking port (origin) */
     plan->table[3].pos_ref.v[1] = 0.0;
     plan->table[3].corridor_m   = GNC_DOCK_POS_TOL;   /* 5 cm */
     plan->table[3].hold_time_s  = 0.0;
@@ -99,6 +97,21 @@ GncStatus guid_init_plan(GuidancePlan *plan)
     plan->count            = 4U;
     plan->active           = 0U;
     plan->phase_elapsed_s  = 0.0;
+
+    /* Runtime-configurable velocity profile — params or hardcoded defaults */
+    if (p != NULL) {
+        plan->K_V = p->K_V;
+        uint32_t ph = 0U;
+        for (ph = 0U; ph < GUID_NUM_PHASES; ph++) {
+            plan->v_phase_max[ph] = p->v_phase_max[ph];
+        }
+    } else {
+        plan->K_V             = GUID_K_V;
+        plan->v_phase_max[0]  = GUID_V_FAR_MAX;
+        plan->v_phase_max[1]  = GUID_V_MID_MAX;
+        plan->v_phase_max[2]  = GUID_V_CLOSE_MAX;
+        plan->v_phase_max[3]  = GUID_V_TERM_MAX;
+    }
 
     GNC_ASSERT(plan->count <= GNC_MAX_WAYPOINTS, ERR_BOUNDS, return ERR_BOUNDS);
     return GNC_OK;
@@ -116,17 +129,7 @@ static double phase_vel_thresh(uint32_t phase)
     return GUID_VT_FAR;
 }
 
-/* Per-phase approach velocity cap table */
-static double phase_v_max(uint32_t phase)
-{
-    double tbl[4];
-    tbl[0] = GUID_V_FAR_MAX;
-    tbl[1] = GUID_V_MID_MAX;
-    tbl[2] = GUID_V_CLOSE_MAX;
-    tbl[3] = GUID_V_TERM_MAX;  /* 0.04 m/s; K_V profile gives natural decel */
-    if (phase < 4U) { return tbl[phase]; }
-    return GUID_V_CREEP;
-}
+/* phase_v_max() replaced by plan->v_phase_max[phase] (runtime-configurable) */
 
 GncStatus guid_compute_ref(
     GuidancePlan    *plan,
@@ -184,7 +187,9 @@ GncStatus guid_compute_ref(
         /* V-BAR approach: no position spring, pure velocity command */
         *pos_ref = nav->pos;    /* pos_err = 0 → no spring fight         */
 
-        double v_close = approach_vel(range_to_wp, phase_v_max(plan->active));
+        double v_close = approach_vel(range_to_wp,
+                                     plan->v_phase_max[plan->active],
+                                     plan->K_V);
         if (range_to_wp > 1.0e-6) {
             vel_ref->v[0] = -v_close * err.v[0] / range_to_wp;
             vel_ref->v[1] = -v_close * err.v[1] / range_to_wp;

@@ -51,12 +51,15 @@ typedef enum {
 typedef struct {
     FaultCode   active_fault;
     MissionMode mode;
-    uint32_t    fault_step;       /* sim step when fault was detected          */
-    uint32_t    dropout_count;    /* consecutive steps without measurement     */
-    uint32_t    hold_steps;       /* steps spent in current hold mode          */
-    uint32_t    valid_count;      /* consecutive valid meas (dropout recovery) */
-    uint8_t     fault_latched;    /* 1 = fault cannot self-clear               */
-    uint8_t     recovery_done;    /* 1 = hold period done, continue degraded   */
+    uint32_t    fault_step;           /* sim step when fault was detected          */
+    uint32_t    dropout_count;        /* consecutive steps without measurement     */
+    uint32_t    hold_steps;           /* steps spent in current hold mode          */
+    uint32_t    valid_count;          /* consecutive valid meas (dropout recovery) */
+    uint8_t     fault_latched;        /* 1 = fault cannot self-clear               */
+    uint8_t     recovery_done;        /* 1 = hold period done, continue degraded   */
+    /* Runtime-configurable thresholds (set by fdir_init from GncParams or defaults) */
+    uint32_t    hold_timeout_steps;   /* steps in HOLD before auto-recovery        */
+    uint32_t    dropout_limit;        /* consecutive no-meas steps before dropout  */
 } FaultState;
 
 /* -----------------------------------------------------------------------
@@ -73,13 +76,24 @@ typedef struct {
 #define FDIR_HOLD_TIMEOUT          50U      /* steps in HOLD before resuming  */
 
 /* -----------------------------------------------------------------------
+ * Forward declaration — full definition in sim/params.h
+ * ----------------------------------------------------------------------- */
+#ifndef GNC_PARAMS_FWDECL
+#define GNC_PARAMS_FWDECL
+typedef struct GncParams GncParams;
+#endif
+
+/* -----------------------------------------------------------------------
  * API
  * ----------------------------------------------------------------------- */
 
 /**
  * @brief  Initialise fault state to NOMINAL, all counters zero.
+ *
+ * @param  fs  Fault state to initialise.
+ * @param  p   GNC params (NULL → hardcoded defaults FDIR_HOLD_TIMEOUT / FDIR_DROPOUT_LIMIT).
  */
-GncStatus fdir_init(FaultState *fs);
+GncStatus fdir_init(FaultState *fs, const GncParams *p);
 
 /**
  * @brief  Check thruster health: compare commanded vs actual force per axis.

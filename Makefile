@@ -18,7 +18,7 @@ CFLAGS  := -std=c99 \
             -fanalyzer \
             -O2
 
-INCLUDES := -I include/
+INCLUDES := -I include/ -I sim/
 
 SRCS := src/dynamics.c \
         src/nav_filter.c \
@@ -29,6 +29,7 @@ SRCS := src/dynamics.c \
         src/fdir.c \
         src/imu_model.c \
         src/mission_mgr.c \
+        sim/params.c \
         sim/main.c
 
 # Sources for the shared library (no sim/main.c)
@@ -38,6 +39,7 @@ LIB_SRCS := src/dynamics.c \
              src/control.c \
              src/attitude.c \
              src/rw_model.c \
+             sim/params.c \
              bsk/gnc_bridge.c
 
 TARGET  := sim/dock_sim
@@ -45,7 +47,10 @@ LIB_OUT := build/libgnc.so
 
 VERIFY_DIR := verify
 
-.PHONY: all clean check run shared plot mc mc-fdir mc-retreat verify
+.PHONY: all clean check run shared plot mc mc-fdir mc-retreat verify mc-all mc-all-opt \
+        optimise optimise-full optimise-dashboard \
+        bsk-all bsk-all-opt bsk-vizard bsk-compare \
+        demo demo-install
 
 all: $(TARGET)
 
@@ -69,12 +74,16 @@ run: $(TARGET)
 	@mkdir -p sim
 	./$(TARGET)
 
+run-params: $(TARGET)
+	./$(TARGET) --params=$(P)
+
 check:
 	@echo "[STATIC] Running cppcheck..."
 	cppcheck --enable=all \
 	         --error-exitcode=1 \
 	         --suppress=missingIncludeSystem \
-	         -I include/ \
+	         --suppress=unusedFunction:sim/params.c \
+	         -I include/ -I sim/ \
 	         src/ sim/
 	@echo "[STATIC] cppcheck PASSED"
 
@@ -87,11 +96,12 @@ plot: $(TARGET)
 # ── Monte Carlo — make mc N=100 ───────────────────────────────────────────────
 MC_TARGET := sim/mc_sim
 MC_SRCS   := src/dynamics.c src/nav_filter.c src/guidance.c src/control.c \
-             src/attitude.c src/rw_model.c src/fdir.c sim/monte_carlo.c
+             src/attitude.c src/rw_model.c src/fdir.c sim/params.c sim/monte_carlo.c
 
 MCFDIR_TARGET := sim/mc_fdir_sim
 MCFDIR_SRCS   := src/dynamics.c src/nav_filter.c src/guidance.c src/control.c \
-                 src/attitude.c src/rw_model.c src/fdir.c src/mission_mgr.c sim/mc_fdir.c
+                 src/attitude.c src/rw_model.c src/fdir.c src/mission_mgr.c \
+                 sim/params.c sim/mc_fdir.c
 
 N ?= 100
 
@@ -103,6 +113,62 @@ mc: $(MC_TARGET)
 	./$(MC_TARGET) $(N)
 	python3 sim/plot_mc.py
 	@echo "[MC] Monte Carlo complete"
+
+# ── Scenario runner — make mc-all / mc-all-opt ───────────────────────────────
+SCRUN_TARGET := sim/scenario_runner
+SCRUN_SRCS   := src/dynamics.c src/nav_filter.c src/guidance.c src/control.c \
+                src/attitude.c src/rw_model.c src/fdir.c src/mission_mgr.c \
+                sim/params.c sim/scenarios.c sim/scenario_runner.c
+
+$(SCRUN_TARGET): $(SCRUN_SRCS)
+	$(CC) $(CFLAGS) $(INCLUDES) $^ -lm -o $@
+
+mc-all: $(SCRUN_TARGET)
+	@mkdir -p sim/results
+	./$(SCRUN_TARGET) --params=sim/default_params.json
+	@echo "[MC-ALL] All scenarios complete"
+
+mc-all-opt: $(SCRUN_TARGET)
+	@mkdir -p sim/results
+	./$(SCRUN_TARGET) --params=sim/best_params.json
+	@echo "[MC-ALL-OPT] All scenarios complete (optimised params)"
+
+# ── Basilisk batch runner — Phase 4 ─────────────────────────────────────────
+bsk-all: shared
+	python bsk/run_all_scenarios.py --params=sim/default_params.json
+	@echo "[BSK-ALL] Done — bsk/scenario_results.csv written"
+
+bsk-all-opt: shared
+	python bsk/run_all_scenarios.py --params=sim/best_params.json
+	@echo "[BSK-ALL-OPT] Done — optimised params"
+
+bsk-vizard: shared
+	python bsk/run_all_scenarios.py --scenario=$(SC) --vizard --params=$(P)
+	@echo "[VIZARD] bsk/vizard_$(SC).bin written"
+	@echo "Open this file in the Vizard application."
+
+bsk-compare: shared
+	make mc-all
+	make bsk-all
+	python bsk/compare_results.py
+	@echo "[COMPARE] bsk/comparison_report.csv written"
+
+# ── Bayesian optimisation — make optimise [--trials=200] ─────────────────────
+optimise:
+	python sim/optimise.py --trials=200
+
+optimise-full:
+	python sim/optimise.py --trials=1000
+
+optimise-dashboard:
+	optuna-dashboard sqlite:///sim/optuna.db
+
+# ── Streamlit demo — Phase 5 ─────────────────────────────────────────────────
+demo: shared $(SCRUN_TARGET)
+	streamlit run sim/app.py
+
+demo-install:
+	pip install streamlit plotly pandas optuna optuna-dashboard
 
 # ── FDIR Monte Carlo — make mc-fdir FAULT=stuck_open N=100 ───────────────────
 FAULT ?= stuck_open
@@ -143,6 +209,6 @@ verify: $(SRCS)
 	@echo "[VERIFY] Results in $(VERIFY_DIR)/"
 
 clean:
-	rm -f $(TARGET) $(MC_TARGET) $(MCFDIR_TARGET) \
+	rm -f $(TARGET) $(MC_TARGET) $(MCFDIR_TARGET) $(SCRUN_TARGET) \
 	      sim/telem.csv sim/mc_results.csv sim/mc_fdir_results.csv $(LIB_OUT)
-	rm -rf build/ sim/plots/ sim/mc_plots/ $(VERIFY_DIR)/
+	rm -rf build/ sim/plots/ sim/mc_plots/ sim/results/ $(VERIFY_DIR)/

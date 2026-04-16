@@ -20,6 +20,7 @@
  */
 
 #include <stdio.h>
+#include <string.h>
 #include <math.h>
 #include <stdint.h>
 #include "gnc_types.h"
@@ -33,6 +34,7 @@
 #include "fdir.h"
 #include "imu_model.h"
 #include "mission_mgr.h"
+#include "params.h"
 
 /* -----------------------------------------------------------------------
  * Simulation parameters
@@ -202,11 +204,41 @@ static GncStatus print_report(
     return GNC_OK;
 }
 
+/* Maximum number of command-line arguments scanned (Rule 2 bound) */
+#define SIM_MAX_ARGS  8U
+
 /* -----------------------------------------------------------------------
  * main — simulation entry point
  * ----------------------------------------------------------------------- */
-int main(void)
+int main(int argc, char *argv[])
 {
+    /* --- Parse --params=<path> argument -------------------------------- */
+    GncParams params;
+    {
+        const char *params_path = NULL;
+        int max_args = (argc < (int)SIM_MAX_ARGS) ? argc : (int)SIM_MAX_ARGS;
+        int ai;
+        for (ai = 1; ai < max_args; ai++) {
+            /* "--params=" is 9 characters */
+            if (strncmp(argv[ai], "--params=", 9U) == 0) {
+                params_path = argv[ai] + 9;
+            }
+        }
+        if (params_path != NULL) {
+            int pr = params_read_json(&params, params_path);
+            if (pr != 0) {
+                (void)fprintf(stderr,
+                    "[sim] Warning: could not read %s; using defaults\n",
+                    params_path);
+                params_set_defaults(&params);
+            } else {
+                (void)printf("[sim] Loaded params from %s\n", params_path);
+            }
+        } else {
+            params_set_defaults(&params);
+        }
+    }
+
     /* --- Orbit setup -------------------------------------------------- */
     double sma   = GNC_EARTH_RADIUS + GNC_ISS_ALTITUDE;   /* semi-major axis */
     double n_rad = 0.0;
@@ -224,12 +256,12 @@ int main(void)
 
     /* --- Guidance plan ------------------------------------------------- */
     GuidancePlan plan;
-    rc = guid_init_plan(&plan);
+    rc = guid_init_plan(&plan, &params);
     GNC_ASSERT(rc == GNC_OK, rc, return (int)rc);
 
     /* --- PD gains ------------------------------------------------------- */
     PdGains gains;
-    rc = ctrl_init_gains(&gains);
+    rc = ctrl_init_gains(&gains, &params);
     GNC_ASSERT(rc == GNC_OK, rc, return (int)rc);
 
     /* --- Attitude state and reaction wheels ----------------------------- */
@@ -255,7 +287,7 @@ int main(void)
 
     /* --- FDIR fault state ----------------------------------------------- */
     FaultState fault_state;
-    rc = fdir_init(&fault_state);
+    rc = fdir_init(&fault_state, &params);
     GNC_ASSERT(rc == GNC_OK, rc, return (int)rc);
 
     /* --- Phase 9 mission manager ---------------------------------------- */
@@ -267,7 +299,7 @@ int main(void)
     FuelState fuel        = {0.0, 0.0, 0U};
     double    mass        = GNC_CHASER_MASS;
     uint8_t   term_armed  = 0U;
-    double    mib_Ns      = GNC_MIN_IMPULSE_BIT;
+    double    mib_Ns      = params.mib_normal_ns;
     uint32_t  dock_dwell  = 0U;   /* steps chaser has been inside tolerance */
     /* meas_valid is a per-step local in the LIDAR block (step 0) */
     Vec3      last_imu_accel = {{0.0, 0.0, 0.0}};  /* last IMU sample (telem) */
@@ -341,10 +373,10 @@ int main(void)
             GNC_ASSERT(rc == GNC_OK, rc, { (void)fclose(fp); return (int)rc; });
 
             if ((term_armed == 0U) && (cur_phase >= (plan.count - 1U))) {
-                rc = ctrl_apply_terminal_gains(&gains);
+                rc = ctrl_apply_terminal_gains(&gains, &params);
                 GNC_ASSERT(rc == GNC_OK, rc,
                            { (void)fclose(fp); return (int)rc; });
-                mib_Ns     = SIM_TERMINAL_MIB_NS;
+                mib_Ns     = params.mib_terminal_ns;
                 term_armed = 1U;
                 (void)printf(
                     "[%5u] *** Final-ingress gains armed  range=%.3f m ***\n",

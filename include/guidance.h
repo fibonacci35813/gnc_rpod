@@ -27,17 +27,32 @@
 
 #include "gnc_types.h"
 
-/* Phase velocity caps (m/s) */
+/* Phase velocity caps — default values (runtime-configurable via GncParams) */
 #define GUID_V_FAR_MAX     1.00   /* phase 0: long-range, up to 1.0 m/s   */
 #define GUID_V_MID_MAX     0.50   /* phase 1: mid-range, up to 0.5 m/s    */
 #define GUID_V_CLOSE_MAX   0.08   /* phase 2: close approach               */
 #define GUID_V_TERM_MAX    0.04   /* phase 3: terminal (K_V profile brakes)*/
 
-/* V-bar gain: v_close = GUID_K_V * range_to_wp (capped at v_phase_max)
- * At 4m: 0.04 m/s   At 1m: 0.010 m/s   At 0.1m: 0.001 m/s (→ CREEP) */
+/* V-bar gain default.  Stored in GuidancePlan.K_V at runtime. */
 #define GUID_K_V           0.010
 
-GncStatus guid_init_plan(GuidancePlan *plan);
+/* Number of guidance phases (bounds the v_phase_max loop in guid_init_plan) */
+#define GUID_NUM_PHASES    4U
+
+/* Forward declaration — full definition in sim/params.h */
+#ifndef GNC_PARAMS_FWDECL
+#define GNC_PARAMS_FWDECL
+typedef struct GncParams GncParams;
+#endif
+
+/**
+ * @brief  Initialise the 4-phase guidance plan.
+ *
+ * @param  plan  GuidancePlan to initialise.
+ * @param  p     GNC params (NULL → hardcoded defaults).
+ * @return GNC_OK, ERR_NULL_PTR, or ERR_BOUNDS.
+ */
+GncStatus guid_init_plan(GuidancePlan *plan, const GncParams *p);
 
 GncStatus guid_compute_ref(
     GuidancePlan    *plan,

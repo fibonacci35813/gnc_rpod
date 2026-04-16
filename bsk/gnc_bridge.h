@@ -101,6 +101,18 @@ int gnc_bridge_get_phase(const GncContext *ctx);
  */
 void gnc_bridge_free(GncContext *ctx);
 
+/**
+ * @brief  Load GNC params from a JSON file into the context.
+ *
+ *   Re-initialises guidance plan and PD gains with the new parameters.
+ *   Call after gnc_bridge_init() and before the first gnc_bridge_step().
+ *
+ * @param  ctx        GNC context
+ * @param  json_path  Path to JSON params file (e.g. sim/best_params.json)
+ * @return 0 on success, non-zero on file or parse error
+ */
+int gnc_bridge_set_params(GncContext *ctx, const char *json_path);
+
 #ifdef __cplusplus
 }
 #endif

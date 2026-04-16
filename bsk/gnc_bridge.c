@@ -18,6 +18,7 @@
 #include "../include/nav_filter.h"
 #include "../include/guidance.h"
 #include "../include/control.h"
+#include "../sim/params.h"
 
 /* -----------------------------------------------------------------------
  * Static context pool — supports up to 4 concurrent GNC instances
@@ -31,6 +32,7 @@ struct GncContext {
     GuidancePlan  plan;
     PdGains       gains;
     FuelState     fuel;
+    GncParams     params;       /* runtime-configurable gains/thresholds  */
     double        mass_kg;
     double        n_rad;        /* orbit mean motion (rad/s)              */
     double        mib_Ns;       /* active MIB threshold (N·s)             */
@@ -93,7 +95,10 @@ GncContext *gnc_bridge_init(
     (void)memset(ctx, 0, sizeof(struct GncContext));
     ctx->in_use  = 1U;
     ctx->mass_kg = mass_kg;
-    ctx->mib_Ns  = GNC_MIN_IMPULSE_BIT;
+
+    /* Load default params — caller may override via gnc_bridge_set_params() */
+    params_set_defaults(&ctx->params);
+    ctx->mib_Ns = ctx->params.mib_normal_ns;
 
     /* Mean motion */
     GncStatus rc = dyn_mean_motion(sma_m, &ctx->n_rad);
@@ -106,11 +111,11 @@ GncContext *gnc_bridge_init(
     if (rc != GNC_OK) { ctx->in_use = 0U; return NULL; }
 
     /* Guidance plan */
-    rc = guid_init_plan(&ctx->plan);
+    rc = guid_init_plan(&ctx->plan, &ctx->params);
     if (rc != GNC_OK) { ctx->in_use = 0U; return NULL; }
 
     /* PD gains */
-    rc = ctrl_init_gains(&ctx->gains);
+    rc = ctrl_init_gains(&ctx->gains, &ctx->params);
     if (rc != GNC_OK) { ctx->in_use = 0U; return NULL; }
 
     return ctx;
@@ -155,9 +160,9 @@ int gnc_bridge_step(
         if (rc != GNC_OK) { return (int)rc; }
 
         if ((ctx->term_armed == 0U) && (phase >= (ctx->plan.count - 1U))) {
-            rc = ctrl_apply_terminal_gains(&ctx->gains);
+            rc = ctrl_apply_terminal_gains(&ctx->gains, &ctx->params);
             if (rc != GNC_OK) { return (int)rc; }
-            ctx->mib_Ns    = 0.005;
+            ctx->mib_Ns    = ctx->params.mib_terminal_ns;
             ctx->term_armed = 1U;
         }
     }
@@ -243,4 +248,28 @@ void gnc_bridge_free(GncContext *ctx)
 {
     if (ctx == NULL) { return; }
     ctx->in_use = 0U;
+}
+
+int gnc_bridge_set_params(GncContext *ctx, const char *json_path)
+{
+    if (ctx == NULL)      { return -1; }
+    if (json_path == NULL) { return -1; }
+
+    int rc = params_read_json(&ctx->params, json_path);
+    if (rc != 0) { return -1; }
+
+    /* Re-initialise guidance and gains with the new params */
+    GncStatus grc;
+    grc = guid_init_plan(&ctx->plan, &ctx->params);
+    if (grc != GNC_OK) { return (int)grc; }
+
+    grc = ctrl_init_gains(&ctx->gains, &ctx->params);
+    if (grc != GNC_OK) { return (int)grc; }
+
+    /* Update MIB — if terminal gains already armed, use terminal threshold */
+    ctx->mib_Ns = (ctx->term_armed != 0U)
+        ? ctx->params.mib_terminal_ns
+        : ctx->params.mib_normal_ns;
+
+    return 0;
 }

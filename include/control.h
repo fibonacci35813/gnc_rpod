@@ -17,6 +17,12 @@
 
 #include "gnc_types.h"
 
+/* Forward declaration — full definition in sim/params.h */
+#ifndef GNC_PARAMS_FWDECL
+#define GNC_PARAMS_FWDECL
+typedef struct GncParams GncParams;
+#endif
+
 /**
  * @brief  PD gain set — one per translational axis.
  *         Radial (x), along-track (y), cross-track (z).
@@ -27,12 +33,13 @@ typedef struct {
 } PdGains;
 
 /**
- * @brief  Initialise PD gains to tuned defaults for the docking scenario.
+ * @brief  Initialise PD gains from params or hardcoded defaults.
  *
  * @param  gains   Output gain struct.
+ * @param  p       GNC params (NULL → hardcoded compile-time defaults).
  * @return GNC_OK or ERR_NULL_PTR.
  */
-GncStatus ctrl_init_gains(PdGains *gains);
+GncStatus ctrl_init_gains(PdGains *gains, const GncParams *p);
 
 /**
  * @brief  Compute force command from position/velocity errors.
@@ -81,12 +88,13 @@ GncStatus ctrl_vec3_sub(const Vec3 *a, const Vec3 *b, Vec3 *result);
  * @brief  Override gains with high-bandwidth terminal values (range < 5 m).
  *
  *   Called once when the chaser enters the terminal zone.
- *   Increases proportional gain 4× and derivative gain 3× for tight
- *   final approach.  Should only be called in the terminal phase.
+ *   When p is non-NULL, uses p->kp_terminal and p->kd_terminal.
+ *   When p is NULL, applies hardcoded overdamped defaults (Kp=0.50, Kd=42).
  *
  * @param  gains  Gains struct to overwrite.
+ * @param  p      GNC params (NULL → hardcoded defaults).
  * @return GNC_OK or ERR_NULL_PTR.
  */
-GncStatus ctrl_apply_terminal_gains(PdGains *gains);
+GncStatus ctrl_apply_terminal_gains(PdGains *gains, const GncParams *p);
 
 #endif /* CONTROL_H */

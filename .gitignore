@@ -32,3 +32,13 @@ conda-meta/
 .DS_Store
 .vscode/
 .idea/
+# build artifacts
+build/
+sim/dock_sim
+sim/mc_sim
+sim/mc_fdir_sim
+sim/scenario_runner
+
+# generated verification output
+verify/
+basilisk/

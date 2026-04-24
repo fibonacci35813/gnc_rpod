@@ -1,0 +1,34 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Build artifacts
+build/
+*.so
+*.o
+*.a
+*.out
+sim/dock_sim
+sim/mc_sim
+sim/mc_fdir_sim
+sim/scenario_runner
+
+# Results / generated files
+*.csv
+*.png
+*.pdf
+*.bin
+*.db
+
+# Virtual env / conda
+.venv/
+venv/
+env/
+conda-meta/
+
+# OS/editor
+.DS_Store
+.vscode/
+.idea/

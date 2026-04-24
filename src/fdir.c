@@ -15,6 +15,7 @@
 #include "gnc_types.h"
 #include "gnc_assert.h"
 #include "fdir.h"
+#include "params.h"
 
 /* Number of axes in Vec3 — used for bounded loops (Rule 2) */
 #define FDIR_NUM_AXES  3U
@@ -36,7 +37,7 @@ static void fdir_set_fault(FaultState *fs, FaultCode code, uint8_t latched)
 }
 
 /* ----------------------------------------------------------------------- */
-GncStatus fdir_init(FaultState *fs)
+GncStatus fdir_init(FaultState *fs, const GncParams *p)
 {
     GNC_ASSERT(fs   != NULL,            ERR_NULL_PTR,  return ERR_NULL_PTR);
     GNC_ASSERT(sizeof(*fs) > 0U,        ERR_BAD_PARAM, return ERR_BAD_PARAM);
@@ -49,6 +50,17 @@ GncStatus fdir_init(FaultState *fs)
     fs->valid_count   = 0U;
     fs->fault_latched = 0U;
     fs->recovery_done = 0U;
+
+    /* Runtime-configurable thresholds — params or hardcoded defines */
+    if (p != NULL) {
+        fs->hold_timeout_steps = (p->fdir_hold_timeout_s > 0.0)
+            ? (uint32_t)(p->fdir_hold_timeout_s / GNC_DT_SEC)
+            : FDIR_HOLD_TIMEOUT;
+        fs->dropout_limit = p->fdir_dropout_limit;
+    } else {
+        fs->hold_timeout_steps = FDIR_HOLD_TIMEOUT;
+        fs->dropout_limit      = FDIR_DROPOUT_LIMIT;
+    }
     return GNC_OK;
 }
 
@@ -98,7 +110,7 @@ GncStatus fdir_check_sensor(uint8_t meas_valid, FaultState *fs)
     if (meas_valid == 0U) {
         fs->dropout_count++;
         fs->valid_count = 0U;
-        if (fs->dropout_count >= FDIR_DROPOUT_LIMIT) {
+        if (fs->dropout_count >= fs->dropout_limit) {
             fdir_set_fault(fs, FAULT_SENSOR_DROPOUT, 0U);
         }
     } else {
@@ -192,7 +204,7 @@ GncStatus fdir_update(FaultState *fs, uint32_t step)
     /* Advance hold timer only for non-latched faults in HOLD mode */
     if ((mode == MODE_HOLD) && (fs->fault_latched == 0U)) {
         fs->hold_steps++;
-        if (fs->hold_steps >= FDIR_HOLD_TIMEOUT) {
+        if (fs->hold_steps >= fs->hold_timeout_steps) {
             fs->recovery_done = 1U;
             fs->active_fault  = FAULT_NONE;
             fs->hold_steps    = 0U;

@@ -33,6 +33,7 @@ import numpy as np
 import matplotlib
 matplotlib.use("Agg")          # headless rendering
 import matplotlib.pyplot as plt
+# from Basilisk.utilities import vizSupport
 
 # ── Basilisk imports ──────────────────────────────────────────────────────
 try:
@@ -128,7 +129,9 @@ def make_earth_gravity_body():
 # Single simulation run
 # ---------------------------------------------------------------------------
 
-def run_sim(seed: int = 42, show_progress: bool = True) -> dict:
+def run_sim(seed: int = 42, show_progress: bool = True,
+            enable_vizard: bool = False,
+            scenario_name: str = "nominal") -> dict:
     """
     Run one docking simulation. Returns a result dict.
     """
@@ -200,6 +203,18 @@ def run_sim(seed: int = 42, show_progress: bool = True) -> dict:
     scSim.AddModelToTask("dynTask", chs_log)
 
     scSim.InitializeSimulation()
+
+    if enable_vizard:
+        from Basilisk.utilities import vizSupport
+        viz = vizSupport.enableUnityVisualization(
+            scSim,
+            "dynTask",
+            [tgt, chs],
+            saveFile=os.path.join(
+                os.path.dirname(__file__),
+                f"vizard_{scenario_name}.bin"
+            )
+        )
 
     # ── GNC bridge initialise ─────────────────────────────────────────────
     gnc = GncBridge(sma_m=SMA, mass_kg=CHASER_MASS)
@@ -389,7 +404,9 @@ if __name__ == "__main__":
         run_monte_carlo(args.mc)
     else:
         print(f"=== Single run (seed={args.seed}) ===")
-        result = run_sim(seed=args.seed, show_progress=True)
+        result = run_sim(seed=args.seed, show_progress=True,
+                     enable_vizard=args.vizard,
+                     scenario_name="nominal")
 
         print(f"\n{'='*44}")
         print(f"  Docked        : {'YES' if result['docked'] else 'NO'}")

@@ -9,6 +9,7 @@
 #include <math.h>
 #include "control.h"
 #include "gnc_assert.h"
+#include "params.h"
 
 /* -----------------------------------------------------------------------
  * Default tuned gains — normal approach phases
@@ -37,16 +38,25 @@
   @         gains->kd[0] > 0.0 && gains->kd[1] > 0.0 && gains->kd[2] > 0.0;
   @ assigns *gains;
 @*/
-GncStatus ctrl_init_gains(PdGains *gains)
+GncStatus ctrl_init_gains(PdGains *gains, const GncParams *p)
 {
     GNC_ASSERT(gains != NULL, ERR_NULL_PTR, return ERR_NULL_PTR);
 
-    gains->kp[0] = CTRL_KP_RADIAL;
-    gains->kp[1] = CTRL_KP_ALONG;
-    gains->kp[2] = CTRL_KP_CROSS;
-    gains->kd[0] = CTRL_KD_RADIAL;
-    gains->kd[1] = CTRL_KD_ALONG;
-    gains->kd[2] = CTRL_KD_CROSS;
+    if (p != NULL) {
+        gains->kp[0] = p->kp[0];
+        gains->kp[1] = p->kp[1];
+        gains->kp[2] = p->kp[2];
+        gains->kd[0] = p->kd[0];
+        gains->kd[1] = p->kd[1];
+        gains->kd[2] = p->kd[2];
+    } else {
+        gains->kp[0] = CTRL_KP_RADIAL;
+        gains->kp[1] = CTRL_KP_ALONG;
+        gains->kp[2] = CTRL_KP_CROSS;
+        gains->kd[0] = CTRL_KD_RADIAL;
+        gains->kd[1] = CTRL_KD_ALONG;
+        gains->kd[2] = CTRL_KD_CROSS;
+    }
 
     /* Sanity: all gains must be positive */
     GNC_ASSERT(gains->kp[0] > 0.0, ERR_BAD_PARAM, return ERR_BAD_PARAM);
@@ -90,24 +100,27 @@ GncStatus ctrl_vec3_sub(const Vec3 *a, const Vec3 *b, Vec3 *result)
     return GNC_OK;
 }
 
-GncStatus ctrl_apply_terminal_gains(PdGains *gains)
+GncStatus ctrl_apply_terminal_gains(PdGains *gains, const GncParams *p)
 {
     GNC_ASSERT(gains != NULL, ERR_NULL_PTR, return ERR_NULL_PTR);
 
-    /* Terminal gains: uniform across all axes for predictable behaviour.
-     * Target: ζ = 1.3 (overdamped), ωn = 0.0316 rad/s
-     *   Kp = ωn² × m = (0.0316)² × 500 = 0.50 N/m
-     *   Kd = 2ζωn × m = 2 × 1.3 × 0.0316 × 500 = 41.1 N·s/m → 42
-     * Verification:
-     *   ζ = 42 / (2 × √(0.50 × 500)) = 42 / 31.62 = 1.33  ✓ overdamped
-     *   T_settle ≈ 4/(ζ·ωn) = 4/(1.33×0.0316) ≈ 95 s         ✓ feasible
-     */
-    gains->kp[0] = 0.50;
-    gains->kp[1] = 0.50;
-    gains->kp[2] = 0.50;
-    gains->kd[0] = 42.0;
-    gains->kd[1] = 42.0;
-    gains->kd[2] = 42.0;
+    if (p != NULL) {
+        gains->kp[0] = p->kp_terminal[0];
+        gains->kp[1] = p->kp_terminal[1];
+        gains->kp[2] = p->kp_terminal[2];
+        gains->kd[0] = p->kd_terminal[0];
+        gains->kd[1] = p->kd_terminal[1];
+        gains->kd[2] = p->kd_terminal[2];
+    } else {
+        /* Hardcoded overdamped defaults: ζ=1.33, ωn=0.0316 rad/s
+         * Kp=0.50 N/m, Kd=42 N·s/m → T_settle≈95 s */
+        gains->kp[0] = 0.50;
+        gains->kp[1] = 0.50;
+        gains->kp[2] = 0.50;
+        gains->kd[0] = 42.0;
+        gains->kd[1] = 42.0;
+        gains->kd[2] = 42.0;
+    }
 
     GNC_ASSERT(gains->kp[0] > 0.0, ERR_BAD_PARAM, return ERR_BAD_PARAM);
     GNC_ASSERT(gains->kd[0] > 0.0, ERR_BAD_PARAM, return ERR_BAD_PARAM);

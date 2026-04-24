@@ -82,6 +82,13 @@ _lib.gnc_bridge_get_phase.argtypes = [ctypes.c_void_p]
 _lib.gnc_bridge_free.restype  = None
 _lib.gnc_bridge_free.argtypes = [ctypes.c_void_p]
 
+# int gnc_bridge_set_params(ctx, json_path)
+_lib.gnc_bridge_set_params.restype  = ctypes.c_int
+_lib.gnc_bridge_set_params.argtypes = [
+    ctypes.c_void_p,    # ctx
+    ctypes.c_char_p,    # json_path (UTF-8)
+]
+
 
 # ---------------------------------------------------------------------------
 # Python wrapper class
@@ -173,6 +180,14 @@ class GncBridge:
         if self._ctx is None:
             return -1
         return int(_lib.gnc_bridge_get_phase(self._ctx))
+
+    def set_params(self, json_path: str) -> None:
+        """Load GNC parameters from a JSON file (re-inits gains and plan)."""
+        if self._ctx is None:
+            raise RuntimeError("GncBridge.init() must be called first")
+        rc = _lib.gnc_bridge_set_params(self._ctx, json_path.encode())
+        if rc != 0:
+            raise RuntimeError(f"gnc_bridge_set_params returned error {rc}")
 
     def free(self) -> None:
         """Release this context back to the static pool (required for MC runs)."""

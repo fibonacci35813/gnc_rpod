@@ -91,6 +91,8 @@ typedef struct {
     uint32_t count;                    /* number of valid waypoints       */
     uint32_t active;                   /* index of active waypoint        */
     double   phase_elapsed_s;          /* seconds spent in active phase   */
+    double   K_V;                      /* range-proportional velocity gain*/
+    double   v_phase_max[4];           /* max approach speed per phase    */
 } GuidancePlan;
 
 /* -----------------------------------------------------------------------

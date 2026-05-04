@@ -55,25 +55,43 @@ def main():
 
     grav_factory.addBodiesTo(target)
     grav_factory.addBodiesTo(chaser)
-    
+
     sim.AddModelToTask(task_name, target)
     sim.AddModelToTask(task_name, chaser)
+
+    target_recorder = target.scStateOutMsg.recorder(macros.sec2nano(dt_s))
+    chaser_recorder = chaser.scStateOutMsg.recorder(macros.sec2nano(dt_s))
+
+    sim.AddModelToTask(task_name, target_recorder)
+    sim.AddModelToTask(task_name, chaser_recorder)
 
     sim.InitializeSimulation()
     sim.ConfigureStopTime(macros.sec2nano(60.0))
     sim.ExecuteSimulation()
 
-    target_state = target.scStateOutMsg.read()
-    chaser_state = chaser.scStateOutMsg.read()
+    times_s = target_recorder.times() * macros.NANO2SEC
 
+    target_positions = np.array(target_recorder.r_BN_N)
+    target_velocities = np.array(target_recorder.v_BN_N)
+    chaser_positions = np.array(chaser_recorder.r_BN_N)
+    chaser_velocities = np.array(chaser_recorder.v_BN_N)
 
+    ranges_m = []
 
+    for k in range(len(times_s)):
+        rel_k = compute_relative_state(
+            target_positions[k],
+            target_velocities[k],
+            chaser_positions[k],
+            chaser_velocities[k],
+        )
+        ranges_m.append(rel_k.range_m)
 
     rel = compute_relative_state(
-        target_state.r_BN_N,
-        target_state.v_BN_N,
-        chaser_state.r_BN_N,
-        chaser_state.v_BN_N,
+        target_positions[-1],
+        target_velocities[-1],
+        chaser_positions[-1],
+        chaser_velocities[-1],
     )
 
     print("Relative state at end of simulation:")
@@ -81,6 +99,10 @@ def main():
     print(f"Relative velocity (m/s): {rel.velocity_mps}")
     print(f"Range (m): {rel.range_m}")
     print(f"Closing speed (m/s): {rel.closing_speed_mps}")
+    print(f"Logged samples: {len(times_s)}")
+    print(f"Initial range (m): {ranges_m[0]:.6f}")
+    print(f"Minimum range (m): {min(ranges_m):.6f}")
+    print(f"Maximum range (m): {max(ranges_m):.6f}")
 
 if __name__ == "__main__":
     main()

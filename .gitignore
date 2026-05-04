@@ -1,0 +1,10 @@
+basilisk/
+
+build/
+sim/dock_sim
+
+sim/telem.csv
+outputs/
+runs/
+reports/
+*.csv

@@ -1,10 +1,9 @@
-"""Relative state utilities for Basilisk backed RPOD SIL prototypes.
-Basilisk gives spacecraft states in an inertial frame. 
-For RPOD guidance/control we need relative states in a local-vertical-local-horizontal (LVLH) frame.
+"""Relative state utilities for Basilisk-backed RPOD SIL prototypes.
 
-r_rel = r_chaser - r_target
-v_rel = v_chaser - v_target
+This module computes direct relative states in the inertial/ECI frame:
 
+`r_rel = r_chaser - r_target`
+`v_rel = v_chaser - v_target`
 """
 
 from __future__ import annotations
@@ -15,7 +14,7 @@ import numpy as np
 
 @dataclass(frozen=True)
 class RelativeState:
-    """Relative state of chaser with respect to target in LVLH frame."""
+    """Relative state of the chaser with respect to the target in ECI."""
 
     position_m: np.ndarray
     velocity_mps: np.ndarray
@@ -32,12 +31,12 @@ class RelativeState:
         return float(np.dot(self.velocity_mps, radial_unit))
     
 def compute_relative_state(
-        target_position_m: np.ndarray,
-        target_velocity_mps: np.ndarray,
-        chaser_position_m: np.ndarray,
-        chaser_velocity_mps: np.ndarray,
+    target_position_m: np.ndarray,
+    target_velocity_mps: np.ndarray,
+    chaser_position_m: np.ndarray,
+    chaser_velocity_mps: np.ndarray,
 ) -> RelativeState:
-    
+
     target_position_m = np.asarray(target_position_m, dtype=float).reshape(3)
     target_velocity_mps = np.asarray(target_velocity_mps, dtype=float).reshape(3)
     chaser_position_m = np.asarray(chaser_position_m, dtype=float).reshape(3)

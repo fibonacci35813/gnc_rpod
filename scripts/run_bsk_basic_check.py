@@ -8,7 +8,7 @@ def main() -> None:
     try:
         import Basilisk
         from Basilisk.utilities import macros
-    except ImportError as e:
+    except ImportError as exc:
         raise SystemExit(
             "Basilisk import failed. \n"
             "Install it with: pip install bsk"

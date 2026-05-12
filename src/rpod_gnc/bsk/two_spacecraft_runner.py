@@ -9,14 +9,40 @@ import numpy as np
 from Basilisk.simulation import spacecraft
 from Basilisk.utilities import SimulationBaseClass, macros, orbitalMotion, simIncludeGravBody
 
+from rpod_gnc.bsk.frames import relative_state_eci_to_lvlh
 from rpod_gnc.bsk.relative_state_adapter import RelativeState, compute_relative_state
 
 
 @dataclass(frozen=True)
+class LvlhRelativeState:
+    """Relative state of the chaser with respect to the target in LVLH."""
+
+    position_m: np.ndarray
+    velocity_mps: np.ndarray
+
+    @property
+    def range_m(self) -> float:
+        return float(np.linalg.norm(self.position_m))
+
+
+@dataclass(frozen=True)
 class TwoSpacecraftResult:
+    """Logged open-loop truth states for the two-spacecraft Basilisk demo.
+
+    `relative_states` is kept as a backward-compatible alias for
+    `relative_states_eci`.
+    """
+
     times_s: np.ndarray
-    relative_states: list[RelativeState]
+    relative_states_eci: list[RelativeState]
+    relative_states_lvlh: list[LvlhRelativeState]
     ranges_m: np.ndarray
+
+    @property
+    def relative_states(self) -> list[RelativeState]:
+        """Backward-compatible alias for inertial relative states."""
+
+        return self.relative_states_eci
 
 
 def make_spacecraft(name: str, r_n_m: np.ndarray, v_n_mps: np.ndarray):
@@ -79,9 +105,10 @@ def run_two_spacecraft_demo(duration_s: float = 60.0, dt_s: float = 1.0) -> TwoS
     chaser_positions = np.array(chaser_recorder.r_BN_N)
     chaser_velocities = np.array(chaser_recorder.v_BN_N)
 
-    relative_states = []
+    relative_states_eci: list[RelativeState] = []
+    relative_states_lvlh: list[LvlhRelativeState] = []
     for k in range(len(times_s)):
-        relative_states.append(
+        relative_states_eci.append(
             compute_relative_state(
                 target_positions[k],
                 target_velocities[k],
@@ -89,11 +116,24 @@ def run_two_spacecraft_demo(duration_s: float = 60.0, dt_s: float = 1.0) -> TwoS
                 chaser_velocities[k],
             )
         )
+        relative_position_lvlh_m, relative_velocity_lvlh_mps, _ = relative_state_eci_to_lvlh(
+            target_positions[k],
+            target_velocities[k],
+            chaser_positions[k],
+            chaser_velocities[k],
+        )
+        relative_states_lvlh.append(
+            LvlhRelativeState(
+                position_m=relative_position_lvlh_m,
+                velocity_mps=relative_velocity_lvlh_mps,
+            )
+        )
 
-    ranges_m = np.array([state.range_m for state in relative_states])
+    ranges_m = np.array([state.range_m for state in relative_states_lvlh])
 
     return TwoSpacecraftResult(
         times_s=times_s,
-        relative_states=relative_states,
+        relative_states_eci=relative_states_eci,
+        relative_states_lvlh=relative_states_lvlh,
         ranges_m=ranges_m,
     )

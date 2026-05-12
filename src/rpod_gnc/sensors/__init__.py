@@ -11,3 +11,15 @@ __all__ = [
     "NoisyRelativePoseSensorConfig",
     "RelativePoseMeasurement",
 ]
+
+try:
+    from rpod_gnc.sensors.opengl_pose_sensor import OpenGLPoseSensor, OpenGLPoseSensorConfig
+
+    __all__.extend(
+        [
+            "OpenGLPoseSensor",
+            "OpenGLPoseSensorConfig",
+        ]
+    )
+except ModuleNotFoundError:
+    pass
